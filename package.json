@@ -6,5 +6,16 @@
     "plugins": [
       "lotus-coffee"
     ]
+  },
+  "dependencies": {
+    "Event": "aleclarson/Event#2.0.1",
+    "ReactiveVar": "aleclarson/ReactiveVar#2.0.0",
+    "SpringAnimation": "aleclarson/SpringAnimation#1.0.0",
+    "Type": "aleclarson/Type#1.1.0",
+    "assertType": "aleclarson/assertType#2.0.0",
+    "assertTypes": "aleclarson/assertTypes#2.0.0",
+    "clampValue": "aleclarson/clampValue#1.0.0",
+    "isDev": "aleclarson/isDev#1.0.0",
+    "modx": "aleclarson/modx#1.0.0"
   }
 }
