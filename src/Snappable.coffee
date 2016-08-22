@@ -2,6 +2,7 @@
 require "isDev"
 
 {NativeValue} = require "modx/native"
+{Number} = require "Nan"
 
 SpringAnimation = require "SpringAnimation"
 ReactiveVar = require "ReactiveVar"
@@ -16,10 +17,11 @@ type = Type "Snappable"
 type.defineOptions
   index: Number.withDefault 0
   maxIndex: Number.isRequired
-  gapLength: Number
   maxVelocity: Number.withDefault Infinity
   distanceThreshold: Number.withDefault 0
   velocityThreshold: Number.withDefault 0
+  computeRestOffset: Function
+  gapLength: Number
   tension: Number.withDefault 8
   friction: Number.withDefault 5
 
@@ -43,13 +45,17 @@ type.defineValues (options) ->
 
   _index: ReactiveVar options.index
 
-  _offset: NativeValue 0
+  _distance: NativeValue 0
+
+  _lastAnimation: null
+
+  __computeRestOffset: options.computeRestOffset
 
 type.defineGetters
 
-  maxOffset: -> @__getMaxOffset()
+  maxOffset: -> @computeRestOffset @maxIndex
 
-  restOffset: -> @offsetAtIndex @_index._value
+  restOffset: -> @computeRestOffset @_index._value
 
 type.definePrototype
 
@@ -60,37 +66,44 @@ type.definePrototype
 
 type.defineMethods
 
-  offsetAtIndex: (index) ->
+  computeRestOffset: (index) ->
     assertType index, Number
-    return @__getOffset index
+    restOffset = @__computeRestOffset index
+    assertType restOffset, Number
+    return restOffset
 
   animate: (config) ->
+
     if isDev
       assertTypes config, configTypes.animate
+
       if config.toIndex?
         if not config.fromOffset?
           throw Error "Must define 'config.fromOffset' (because 'config.toIndex' is defined)!"
+
       else if not config.distance?
         throw Error "Must define 'config.toIndex' or 'config.distance'!"
 
     if config.distance?
-      toIndex = @resolveIndex config.distance, config.velocity
-      fromOffset = config.distance + @offsetAtIndex @_index._value
-    else {toIndex, fromOffset} = config
+      config.toIndex = @resolveIndex config.distance, config.velocity
+      config.fromOffset = config.distance + @computeRestOffset @_index._value
 
-    restOffset = @offsetAtIndex toIndex
+    config.restOffset = @computeRestOffset config.toIndex
 
-    @willAnimate.emit {toIndex, fromOffset, restOffset}, config
-    @_index.set toIndex
-    @_offset.animate {
+    @willAnimate.emit config
+
+    @_index.set config.toIndex
+    @_distance.value = 0
+    @_lastAnimation = @_distance.animate {
       type: SpringAnimation
       @tension
       @friction
       clamp: yes
-      endValue: restOffset - fromOffset
+      endValue: config.restOffset - config.fromOffset
       velocity: config.velocity
       onUpdate: config.onUpdate
       onEnd: config.onEnd
+      captureFrames: yes # TODO: Remove this!
     }
 
   resolveIndex: (distance, velocity) ->
@@ -103,23 +116,20 @@ type.defineMethods
     distanceSign = getSign distance
     velocitySign = getSign velocity
 
-    if velocitySign is distanceSign
+    if (velocity is 0) or (velocitySign is distanceSign)
 
-      if Math.abs(velocity) > @velocityThreshold
+      if @velocityThreshold < Math.abs velocity
         return @_index.get() + velocitySign
 
-      if Math.abs(distance) > @distanceThreshold
+      if @distanceThreshold < Math.abs distance
         return @_index.get() + distanceSign
 
     return @_index.get()
 
 type.defineHooks
 
-  __getOffset: (index) ->
+  __computeRestOffset: (index) ->
     index * @gapLength
-
-  __getMaxOffset: ->
-    @maxIndex * @gapLength
 
 module.exports = type.build()
 
@@ -131,9 +141,9 @@ getSign = (value) ->
   return 0 if value is 0
   if value > 0 then 1 else -1
 
-if isDev
-  configTypes = {}
-  configTypes.animate =
+isDev and
+configTypes =
+  animate:
     velocity: Number
     distance: Number.Maybe
     toIndex: Number.Maybe

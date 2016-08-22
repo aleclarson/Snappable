@@ -1,8 +1,10 @@
-var Event, NativeValue, ReactiveVar, SpringAnimation, Type, assertType, assertTypes, clampValue, configTypes, getSign, type;
+var Event, NativeValue, Number, ReactiveVar, SpringAnimation, Type, assertType, assertTypes, clampValue, configTypes, getSign, type;
 
 require("isDev");
 
 NativeValue = require("modx/native").NativeValue;
+
+Number = require("Nan").Number;
 
 SpringAnimation = require("SpringAnimation");
 
@@ -23,10 +25,11 @@ type = Type("Snappable");
 type.defineOptions({
   index: Number.withDefault(0),
   maxIndex: Number.isRequired,
-  gapLength: Number,
   maxVelocity: Number.withDefault(2e308),
   distanceThreshold: Number.withDefault(0),
   velocityThreshold: Number.withDefault(0),
+  computeRestOffset: Function,
+  gapLength: Number,
   tension: Number.withDefault(8),
   friction: Number.withDefault(5)
 });
@@ -42,16 +45,18 @@ type.defineValues(function(options) {
     friction: options.friction,
     willAnimate: Event(),
     _index: ReactiveVar(options.index),
-    _offset: NativeValue(0)
+    _distance: NativeValue(0),
+    _lastAnimation: null,
+    __computeRestOffset: options.computeRestOffset
   };
 });
 
 type.defineGetters({
   maxOffset: function() {
-    return this.__getMaxOffset();
+    return this.computeRestOffset(this.maxIndex);
   },
   restOffset: function() {
-    return this.offsetAtIndex(this._index._value);
+    return this.computeRestOffset(this._index._value);
   }
 });
 
@@ -67,12 +72,14 @@ type.definePrototype({
 });
 
 type.defineMethods({
-  offsetAtIndex: function(index) {
+  computeRestOffset: function(index) {
+    var restOffset;
     assertType(index, Number);
-    return this.__getOffset(index);
+    restOffset = this.__computeRestOffset(index);
+    assertType(restOffset, Number);
+    return restOffset;
   },
   animate: function(config) {
-    var fromOffset, restOffset, toIndex;
     if (isDev) {
       assertTypes(config, configTypes.animate);
       if (config.toIndex != null) {
@@ -84,27 +91,23 @@ type.defineMethods({
       }
     }
     if (config.distance != null) {
-      toIndex = this.resolveIndex(config.distance, config.velocity);
-      fromOffset = config.distance + this.offsetAtIndex(this._index._value);
-    } else {
-      toIndex = config.toIndex, fromOffset = config.fromOffset;
+      config.toIndex = this.resolveIndex(config.distance, config.velocity);
+      config.fromOffset = config.distance + this.computeRestOffset(this._index._value);
     }
-    restOffset = this.offsetAtIndex(toIndex);
-    this.willAnimate.emit({
-      toIndex: toIndex,
-      fromOffset: fromOffset,
-      restOffset: restOffset
-    }, config);
-    this._index.set(toIndex);
-    return this._offset.animate({
+    config.restOffset = this.computeRestOffset(config.toIndex);
+    this.willAnimate.emit(config);
+    this._index.set(config.toIndex);
+    this._distance.value = 0;
+    return this._lastAnimation = this._distance.animate({
       type: SpringAnimation,
       tension: this.tension,
       friction: this.friction,
       clamp: true,
-      endValue: restOffset - fromOffset,
+      endValue: config.restOffset - config.fromOffset,
       velocity: config.velocity,
       onUpdate: config.onUpdate,
-      onEnd: config.onEnd
+      onEnd: config.onEnd,
+      captureFrames: true
     });
   },
   resolveIndex: function(distance, velocity) {
@@ -116,11 +119,11 @@ type.defineMethods({
     var distanceSign, velocitySign;
     distanceSign = getSign(distance);
     velocitySign = getSign(velocity);
-    if (velocitySign === distanceSign) {
-      if (Math.abs(velocity) > this.velocityThreshold) {
+    if ((velocity === 0) || (velocitySign === distanceSign)) {
+      if (this.velocityThreshold < Math.abs(velocity)) {
         return this._index.get() + velocitySign;
       }
-      if (Math.abs(distance) > this.distanceThreshold) {
+      if (this.distanceThreshold < Math.abs(distance)) {
         return this._index.get() + distanceSign;
       }
     }
@@ -129,11 +132,8 @@ type.defineMethods({
 });
 
 type.defineHooks({
-  __getOffset: function(index) {
+  __computeRestOffset: function(index) {
     return index * this.gapLength;
-  },
-  __getMaxOffset: function() {
-    return this.maxIndex * this.gapLength;
   }
 });
 
@@ -150,16 +150,15 @@ getSign = function(value) {
   }
 };
 
-if (isDev) {
-  configTypes = {};
-  configTypes.animate = {
+isDev && (configTypes = {
+  animate: {
     velocity: Number,
     distance: Number.Maybe,
     toIndex: Number.Maybe,
     fromOffset: Number.Maybe,
     onUpdate: Function.Maybe,
     onEnd: Function.Maybe
-  };
-}
+  }
+});
 
 //# sourceMappingURL=map/Snappable.map
