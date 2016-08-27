@@ -1,4 +1,4 @@
-var Event, NativeValue, Number, ReactiveVar, SpringAnimation, Type, assertType, assertTypes, clampValue, configTypes, getSign, type;
+var Event, NativeValue, Number, Range, ReactiveVar, SpringAnimation, Type, assertType, assertTypes, clampValue, configTypes, getSign, type;
 
 require("isDev");
 
@@ -18,13 +18,15 @@ clampValue = require("clampValue");
 
 Event = require("Event");
 
+Range = require("Range");
+
 Type = require("Type");
 
 type = Type("Snappable");
 
 type.defineOptions({
   index: Number.withDefault(0),
-  maxIndex: Number.isRequired,
+  indexRange: Range,
   maxVelocity: Number.withDefault(2e308),
   distanceThreshold: Number.withDefault(0),
   velocityThreshold: Number.withDefault(0),
@@ -36,7 +38,6 @@ type.defineOptions({
 
 type.defineValues(function(options) {
   return {
-    maxIndex: options.maxIndex,
     gapLength: options.gapLength,
     distanceThreshold: options.distanceThreshold,
     velocityThreshold: options.velocityThreshold,
@@ -45,6 +46,7 @@ type.defineValues(function(options) {
     friction: options.friction,
     willAnimate: Event(),
     _index: ReactiveVar(options.index),
+    _indexRange: options.indexRange || [0, 0],
     _distance: NativeValue(0),
     _lastAnimation: null,
     __computeRestOffset: options.computeRestOffset
@@ -52,6 +54,12 @@ type.defineValues(function(options) {
 });
 
 type.defineGetters({
+  minIndex: function() {
+    return this._indexRange[0];
+  },
+  maxIndex: function() {
+    return this._indexRange[1];
+  },
   maxOffset: function() {
     return this.computeRestOffset(this.maxIndex);
   },
@@ -66,7 +74,23 @@ type.definePrototype({
       return this._index.get();
     },
     set: function(index) {
+      assertType(index, Number);
+      if (index < this.minIndex) {
+        throw RangeError("'index' equals " + index + ", which is < the 'minIndex': " + this.minIndex);
+      }
+      if (index > this.maxIndex) {
+        throw RangeError("'index' equals " + index + ", which is > the 'maxIndex': " + this.maxIndex);
+      }
       return this._index.set(index);
+    }
+  },
+  indexRange: {
+    get: function() {
+      return this._indexRange;
+    },
+    set: function(range) {
+      assertType(range, Range);
+      return this._indexRange = range;
     }
   }
 });
@@ -90,9 +114,10 @@ type.defineMethods({
         throw Error("Must define 'config.toIndex' or 'config.distance'!");
       }
     }
+    config.fromIndex = this._index._value;
     if (config.distance != null) {
       config.toIndex = this.resolveIndex(config.distance, config.velocity);
-      config.fromOffset = config.distance + this.computeRestOffset(this._index._value);
+      config.fromOffset = config.distance + this.computeRestOffset(config.fromIndex);
     }
     config.restOffset = this.computeRestOffset(config.toIndex);
     this.willAnimate.emit(config);

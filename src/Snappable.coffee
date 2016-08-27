@@ -10,13 +10,14 @@ assertTypes = require "assertTypes"
 assertType = require "assertType"
 clampValue = require "clampValue"
 Event = require "Event"
+Range = require "Range"
 Type = require "Type"
 
 type = Type "Snappable"
 
 type.defineOptions
   index: Number.withDefault 0
-  maxIndex: Number.isRequired
+  indexRange: Range
   maxVelocity: Number.withDefault Infinity
   distanceThreshold: Number.withDefault 0
   velocityThreshold: Number.withDefault 0
@@ -26,8 +27,6 @@ type.defineOptions
   friction: Number.withDefault 5
 
 type.defineValues (options) ->
-
-  maxIndex: options.maxIndex
 
   gapLength: options.gapLength
 
@@ -45,6 +44,8 @@ type.defineValues (options) ->
 
   _index: ReactiveVar options.index
 
+  _indexRange: options.indexRange or [0, 0]
+
   _distance: NativeValue 0
 
   _lastAnimation: null
@@ -52,6 +53,10 @@ type.defineValues (options) ->
   __computeRestOffset: options.computeRestOffset
 
 type.defineGetters
+
+  minIndex: -> @_indexRange[0]
+
+  maxIndex: -> @_indexRange[1]
 
   maxOffset: -> @computeRestOffset @maxIndex
 
@@ -62,7 +67,21 @@ type.definePrototype
   index:
     get: -> @_index.get()
     set: (index) ->
+      assertType index, Number
+
+      if index < @minIndex
+        throw RangeError "'index' equals #{index}, which is < the 'minIndex': #{@minIndex}"
+
+      if index > @maxIndex
+        throw RangeError "'index' equals #{index}, which is > the 'maxIndex': #{@maxIndex}"
+
       @_index.set index
+
+  indexRange:
+    get: -> @_indexRange
+    set: (range) ->
+      assertType range, Range
+      @_indexRange = range
 
 type.defineMethods
 
@@ -84,9 +103,11 @@ type.defineMethods
       else if not config.distance?
         throw Error "Must define 'config.toIndex' or 'config.distance'!"
 
+    config.fromIndex = @_index._value
+
     if config.distance?
       config.toIndex = @resolveIndex config.distance, config.velocity
-      config.fromOffset = config.distance + @computeRestOffset @_index._value
+      config.fromOffset = config.distance + @computeRestOffset config.fromIndex
 
     config.restOffset = @computeRestOffset config.toIndex
 
