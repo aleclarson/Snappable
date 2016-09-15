@@ -2,10 +2,12 @@
   "name": "Snappable",
   "version": "1.0.0",
   "main": "js/Snappable",
-  "lotus": {
-    "plugins": [
-      "lotus-coffee"
-    ]
+  "plugins": [
+    "lotus-coffee"
+  ],
+  "scripts": {
+    "build": "coffee -cb -o js src",
+    "postinstall": "postinstall-build js 'npm run build'"
   },
   "dependencies": {
     "Event": "aleclarson/Event#2.0.1",
@@ -18,6 +20,10 @@
     "assertTypes": "aleclarson/assertTypes#2.0.0",
     "clampValue": "aleclarson/clampValue#1.0.0",
     "isDev": "aleclarson/isDev#1.0.0",
-    "modx": "aleclarson/modx#1.0.0"
+    "modx": "aleclarson/modx#1.0.0",
+    "postinstall-build": "0.2.x"
+  },
+  "devDependencies": {
+    "coffee-script": "1.9.x"
   }
 }
