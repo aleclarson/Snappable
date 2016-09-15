@@ -52,6 +52,13 @@ type.defineValues (options) ->
 
   __computeRestOffset: options.computeRestOffset
 
+type.initInstance ->
+  @_distance.__attach()
+
+#
+# Prototype
+#
+
 type.defineGetters
 
   minIndex: -> @_indexRange[0]
