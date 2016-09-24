@@ -1,6 +1,4 @@
 
-require "isDev"
-
 {NativeValue} = require "modx/native"
 {Number} = require "Nan"
 
@@ -11,6 +9,7 @@ assertType = require "assertType"
 clampValue = require "clampValue"
 Event = require "Event"
 Range = require "Range"
+isDev = require "isDev"
 Type = require "Type"
 
 type = Type "Snappable"
